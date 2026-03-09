@@ -33,6 +33,13 @@ export class BatchStorage {
     fs.writeFileSync(filePath, data, "utf-8");
   }
 
+  deleteBatch(id: string): void {
+    const filePath = this.getBatchPath(id);
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath);
+    }
+  }
+
   loadBatch(id: string): Batch | null {
     const filePath = this.getBatchPath(id);
     if (!fs.existsSync(filePath)) {
@@ -79,44 +86,6 @@ export class BatchStorage {
     return all.filter((summary) => summary.milkType.toLowerCase() === milkType.toLowerCase());
   }
 
-  exportBatchReport(id: string, options: ReportOptions): string | null {
-    const batch = this.loadBatch(id);
-    if (!batch) {
-      return null;
-    }
-    if (options.format === "json") {
-      const report: Record<string, unknown> = { id: batch.id, name: batch.name };
-      if (options.includeLogs) {
-        report.temperatureLogs = batch.temperatureLogs;
-        report.phLogs = batch.phLogs;
-        report.rennetAdditions = batch.rennetAdditions;
-        report.pressingStages = batch.pressingStages;
-      }
-      if (options.includeAging) {
-        report.agingSchedule = batch.agingSchedule;
-      }
-      report.notes = batch.notes;
-      return JSON.stringify(report, null, 2);
-    } else {
-      let text = `Batch: ${batch.name} (${batch.id})\n`;
-      text += `Milk: ${batch.milkType} (${batch.milkAmount} L)\n`;
-      text += `Started: ${batch.startTime}\n`;
-      if (options.includeLogs) {
-        text += `\nTemperature Logs: ${batch.temperatureLogs.length} entries\n`;
-        text += `pH Logs: ${batch.phLogs.length} entries\n`;
-        text += `Rennet Additions: ${batch.rennetAdditions.length} entries\n`;
-        text += `Pressing Stages: ${batch.pressingStages.length} entries\n`;
-      }
-      if (options.includeAging) {
-        text += `Aging Entries: ${batch.agingSchedule.length} entries\n`;
-      }
-      if (batch.notes) {
-        text += `\nNotes: ${batch.notes}\n`;
-      }
-      return text;
-    }
-  }
-
   private createSummary(batch: Batch): BatchSummary {
     let status: BatchSummary["status"] = "active";
     if (batch.agingSchedule.length > 0) {
@@ -124,13 +93,8 @@ export class BatchStorage {
     } else if (batch.pressingStages.length > 0) {
       status = "pressing";
     }
-    // simplistic completion detection: if last aging entry is old
-    if (batch.agingSchedule.length > 0) {
-      const lastAging = batch.agingSchedule[batch.agingSchedule.length - 1];
-      const today = new Date().toISOString().split("T")[0];
-      if (lastAging.date.toString() < today) {
-        status = "completed";
-      }
+    if (batch.agingSchedule.some(e => new Date(e.date) < new Date())) {
+      status = "completed";
     }
     return {
       id: batch.id,

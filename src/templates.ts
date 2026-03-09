@@ -1,5 +1,6 @@
 import { Batch, BatchSummary } from './types';
 import { buildBatchTimeline } from './timeline';
+import { escapeHTML } from './utils';
 
 export function renderBatchList(batches: BatchSummary[]) {
   return `
@@ -12,12 +13,33 @@ export function renderBatchList(batches: BatchSummary[]) {
         <style>
           .batch-card { background: #1a1a1a; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
           .chart-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+          .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+          .actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
         </style>
       </head>
       <body>
         <div style="max-width: 800px; margin: 0 auto">
           <h1>Cheese Batches</h1>
-          <form hx-post="/batches" hx-target="body">
+          
+          <div class="filters">
+            <form hx-get="/" hx-target="body">
+              <select name="status" onchange="this.form.submit()">
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="pressing">Pressing</option>
+                <option value="aging">Aging</option>
+                <option value="completed">Completed</option>
+              </select>
+              <select name="milkType" onchange="this.form.submit()">
+                <option value="">All Milk Types</option>
+                <option value="Cow">Cow</option>
+                <option value="Goat">Goat</option>
+                <option value="Sheep">Sheep</option>
+              </select>
+            </form>
+          </div>
+          
+          <form hx-post="/batches" hx-target="#batches">
             <input name="name" placeholder="Batch name" required>
             <select name="milkType" required>
               <option value="Cow">Cow</option>
@@ -27,12 +49,17 @@ export function renderBatchList(batches: BatchSummary[]) {
             <input type="number" name="milkAmount" placeholder="Liters" required>
             <button type="submit">Create Batch</button>
           </form>
+          
           <div id="batches">
             ${batches.map(b => `
               <div class="batch-card">
-                <h2>${b.name}</h2>
-                <p>${b.milkType} • ${b.status}</p>
-                <a href="/batches/${b.id}">View Details</a>
+                <h2>${escapeHTML(b.name)}</h2>
+                <p>${escapeHTML(b.milkType)} • ${b.status}</p>
+                <div class="actions">
+                  <a href="/batches/${b.id}">View</a>
+                  <a href="/batches/${b.id}/edit">Edit</a>
+                  <button hx-delete="/batches/${b.id}" hx-target="closest .batch-card">Delete</button>
+                </div>
               </div>
             `).join('')}
           </div>
@@ -42,12 +69,31 @@ export function renderBatchList(batches: BatchSummary[]) {
   `;
 }
 
+export function renderEditBatchForm(batch: Batch) {
+  return `
+    <form hx-put="/batches/${batch.id}" hx-target="body">
+      <input name="name" value="${escapeHTML(batch.name)}" required>
+      <select name="milkType" required>
+        <option value="Cow" ${batch.milkType === 'Cow' ? 'selected' : ''}>Cow</option>
+        <option value="Goat" ${batch.milkType === 'Goat' ? 'selected' : ''}>Goat</option>
+        <option value="Sheep" ${batch.milkType === 'Sheep' ? 'selected' : ''}>Sheep</option>
+      </select>
+      <input type="number" name="milkAmount" value="${batch.milkAmount}" required>
+      <textarea name="notes">${escapeHTML(batch.notes || '')}</textarea>
+      <button type="submit">Save Changes</button>
+    </form>
+  `;
+}
+
 export function renderBatchDetails(batch: Batch) {
   const timeline = buildBatchTimeline(batch);
   return `
     <div class="chart-container">
       <canvas id="tempChart"></canvas>
       <canvas id="phChart"></canvas>
+    </div>
+    <div class="actions">
+      <button hx-get="/batches/${batch.id}/edit" hx-target="body">Edit Batch</button>
     </div>
     <form hx-post="/batches/${batch.id}/logs" hx-target="this">
       <select name="type">
