@@ -157,6 +157,36 @@ describe("buildBatchTimeline", () => {
     expect(rennetEvent!.note).toBe("Slow set");
     expect(rennetEvent!.label).toContain("150 IMCU");
   });
+
+  it("should handle unsorted event timestamps", () => {
+    const batch = createBatch({
+      name: "Out of Order",
+      milkType: "Cow",
+      milkAmount: 10,
+    });
+
+    const tempLog1 = { value: 30, timestamp: new Date("2026-03-08T10:00:00Z") };
+    const tempLog2 = { value: 35, timestamp: new Date("2026-03-08T09:00:00Z") };
+    const batchWithLogs = addTemperatureLog(
+      addTemperatureLog(batch, tempLog1),
+      tempLog2
+    );
+
+    const timeline = buildBatchTimeline(batchWithLogs);
+    expect(timeline.events.map(e => e.value)).toEqual([undefined, 35, 30]);
+    expect(timeline.temperatureSeries.map(s => s.value)).toEqual([30, 35]);
+  });
+
+  it("should handle empty data series", () => {
+    const batch = createBatch({
+      name: "No Logs",
+      milkType: "Sheep",
+      milkAmount: 7,
+    });
+    const timeline = buildBatchTimeline(batch);
+    expect(timeline.temperatureSeries).toEqual([]);
+    expect(timeline.phSeries).toEqual([]);
+  });
 });
 
 describe("filterTimelineEvents", () => {
@@ -240,5 +270,36 @@ describe("renderTimelineHTML", () => {
     expect(html).not.toContain('<script>alert');
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("&lt;img onerror=");
+  });
+
+  it("should display no data messages when empty", () => {
+    const batch = createBatch({
+      name: "No Data Batch",
+      milkType: "Goat",
+      milkAmount: 5,
+    });
+    const timeline = buildBatchTimeline(batch);
+    const html = renderTimelineHTML(timeline);
+
+    expect(html).toContain("No temperature data");
+    expect(html).toContain("No pH data");
+    expect(timeline.events).toHaveLength(1);
+  });
+
+  it("should handle special characters in notes", () => {
+    const batch = createBatch({
+      name: "Special Notes",
+      milkType: "Cow",
+      milkAmount: 8,
+    });
+    const updatedBatch = addTemperatureLog(batch, {
+      value: 40,
+      note: "Dangerous & <temperature>",
+    });
+    const timeline = buildBatchTimeline(updatedBatch);
+    const html = renderTimelineHTML(timeline);
+
+    expect(html).toContain("Dangerous &amp; &lt;temperature&gt;");
+    expect(html).not.toContain("Dangerous & <temperature>");
   });
 });

@@ -1,4 +1,5 @@
 import type { Batch, TemperatureLog, PHLog, RennetAddition, PressingStage, AgingEntry } from "./types.js";
+import { escapeHTML } from "./utils.js";
 
 /** A single event on the batch timeline */
 export interface TimelineEvent {
@@ -289,12 +290,4 @@ initCharts(); renderFilters(); renderTimeline();
 </script>
 </body>
 </html>`;
-}
-
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
